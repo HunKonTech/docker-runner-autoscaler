@@ -25,6 +25,7 @@ try {
     Assert ($script:Strings.hu.Count -eq $script:Strings.en.Count) 'en/hu key sets match'
 
     Assert ($ComposeDir -eq $env:DRA_HOME) 'compose dir resolved from DRA_HOME'
+    Assert (-not (Test-InstalledLayout)) 'repository checkout is not an installed layout'
 
     Set-RunnerControl 'manual' 7
     $c = Get-RunnerControl

@@ -6,7 +6,8 @@
 # From a local checkout (development):
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Source .
 #
-# Installs to %LOCALAPPDATA%\DockerRunnerAutoscaler, adds a Startup shortcut and starts the tray app.
+# Installs to %LOCALAPPDATA%\DockerRunnerAutoscaler, adds a Startup shortcut, registers it in
+# Settings -> Apps -> Installed apps (uninstall from there) and starts the tray app.
 # Re-running updates the app; .env, settings.json and docker-compose.yml are kept.
 param(
     [string]$Version    = 'latest',
@@ -92,7 +93,11 @@ try {
     $lnk.Description      = 'Docker Runner Autoscaler'
     $lnk.Save()
 
-    # 6. Start
+    # 6. Installed apps entry (child scope, so runner-lib does not touch this script's variables)
+    Step 'Installed apps entry'
+    & { . (Join-Path $appDir 'runner-lib.ps1'); Register-Uninstaller }
+
+    # 7. Start
     if (-not $NoStart) {
         Step 'Starting tray app'
         Start-Process $lnk.TargetPath -ArgumentList $lnk.Arguments -WorkingDirectory $InstallDir -WindowStyle Hidden
