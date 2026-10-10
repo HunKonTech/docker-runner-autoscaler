@@ -1,0 +1,24 @@
+# GitHub Actions self-hosted runners in Docker (configure in .env)
+services:
+  runner:
+    image: myoung34/github-runner:latest
+    restart: always
+    environment:
+      RUNNER_SCOPE: ${RUNNER_SCOPE:-org}          # org | repo
+      ORG_NAME: ${ORG_NAME:-}                     # RUNNER_SCOPE=org
+      REPO_URL: ${REPO_URL:-}                     # RUNNER_SCOPE=repo, e.g. https://github.com/owner/repo
+      ACCESS_TOKEN: ${GH_PAT}
+      RUNNER_GROUP: ${RUNNER_GROUP:-Default}
+      RUNNER_NAME_PREFIX: ${RUNNER_NAME_PREFIX:-dd}
+      LABELS: ${RUNNER_LABELS:-linux,docker,x64}
+      EPHEMERAL: "true"                           # one job per container, clean environment
+      DISABLE_AUTO_UPDATE: "true"
+      DISABLE_AUTOMATIC_DEREGISTRATION: "false"   # deregister on stop
+      RUNNER_WORKDIR: /_work                      # container disk (exec allowed)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # jobs can build images (trusted repos only!)
+    tmpfs:
+      - /tmp:exec,size=4g
+    shm_size: 2g
+    stop_grace_period: 60s
+    # No CPU/memory limits: every runner may use the whole Docker VM

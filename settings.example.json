@@ -1,0 +1,13 @@
+{
+  "Language": "auto",
+  "MaxRunners": 50,
+  "MinRunners": 1,
+  "IdleBuffer": 1,
+  "GbPerRunner": 3,
+  "PollSec": 10,
+  "ScaleDownDelay": 120,
+  "StopTimeout": 60,
+  "AutoUpdate": true,
+  "UpdateCheckHours": 6,
+  "UpdateRepo": "HunKonTech/docker-runner-autoscaler"
+}
