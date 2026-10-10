@@ -120,6 +120,37 @@ function Stop-AppProcesses([string[]]$scripts = @('runner-autoscale.ps1')) {
         ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
+# --- Windows "Installed apps" entry ---------------------------------------------------
+
+$UninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\DockerRunnerAutoscaler'
+
+# Installed layout (<home>\app); a repository checkout (src\) is never registered or deleted
+function Test-InstalledLayout { (Split-Path $AppDir -Leaf) -eq 'app' }
+
+# Adds / refreshes the entry in Settings -> Apps -> Installed apps (per user, no admin rights)
+function Register-Uninstaller {
+    if (-not (Test-InstalledLayout)) { return }
+    $ps  = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+    $cmd = "`"$ps`" -NoProfile -ExecutionPolicy Bypass -File `"$(Join-Path $AppDir 'uninstall.ps1')`""
+    if (-not (Test-Path $UninstallKey)) { New-Item -Path $UninstallKey -Force | Out-Null }
+    $values = [ordered]@{
+        DisplayName          = T 'AppName'
+        DisplayVersion       = Get-AppVersion
+        Publisher            = ($Settings.UpdateRepo -split '/')[0]
+        URLInfoAbout         = "https://github.com/$($Settings.UpdateRepo)"
+        InstallLocation      = $HomeDir
+        DisplayIcon          = $ps
+        UninstallString      = "$cmd -Interactive"
+        QuietUninstallString = "$cmd -StopRunners"
+    }
+    foreach ($k in $values.Keys) { New-ItemProperty -Path $UninstallKey -Name $k -Value $values[$k] -PropertyType String -Force | Out-Null }
+    foreach ($k in 'NoModify', 'NoRepair') { New-ItemProperty -Path $UninstallKey -Name $k -Value 1 -PropertyType DWord -Force | Out-Null }
+}
+
+function Unregister-Uninstaller {
+    if (Test-Path $UninstallKey) { Remove-Item $UninstallKey -Recurse -Force }
+}
+
 # --- Docker -------------------------------------------------------------------------
 
 # If docker is not on PATH (hidden process, fresh install), try the Docker Desktop locations

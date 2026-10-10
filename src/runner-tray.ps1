@@ -2,7 +2,7 @@
 #  - Starts (and keeps alive) the hidden runner-autoscale.ps1 background process
 #  - Icon shows the number of running runners; color: green = idle, orange = busy, red = all busy, gray = error
 #  - Click: console view (scale-runners.ps1)
-#  - Right click: automatic mode on/off, check for updates, exit (also stops the autoscaler)
+#  - Right click: automatic mode on/off, check for updates, uninstall, exit (also stops the autoscaler)
 #  - Checks GitHub Releases for updates and installs them automatically (settings.json: AutoUpdate)
 param([switch]$Restarted)
 
@@ -23,6 +23,9 @@ $script:iconKey     = ''
 $script:lastAction  = $null
 $script:lastEnsure  = [datetime]::MinValue
 $script:nextUpdate  = (Get-Date).AddSeconds(30)
+
+# Installed apps entry (also refreshes the version shown there after an update)
+try { Register-Uninstaller } catch { }
 
 function New-CountIcon([string]$text, [System.Drawing.Color]$bg) {
     $bmp = New-Object System.Drawing.Bitmap 32, 32
@@ -75,6 +78,7 @@ $miUpdate  = $menu.Items.Add((T 'TrayUpdate'))
 $miVersion = $menu.Items.Add((T 'TrayVersion' (Get-AppVersion)))
 $miVersion.Enabled = $false
 [void]$menu.Items.Add('-')
+$miUninst  = $menu.Items.Add((T 'TrayUninstall'))
 $miExit    = $menu.Items.Add((T 'TrayExit'))
 $tray.ContextMenuStrip = $menu
 
@@ -162,6 +166,11 @@ $miAuto.add_Click({
     Update-Tray
 })
 $miUpdate.add_Click({ Invoke-UpdateCheck $true })
+$miUninst.add_Click({
+    # the uninstaller asks for confirmation, then stops this tray app too
+    Start-Process powershell -WorkingDirectory $env:TEMP -ArgumentList @(
+        '-NoLogo', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$(Join-Path $AppDir 'uninstall.ps1')`"", '-Interactive')
+})
 $miExit.add_Click({
     Stop-AppProcesses @('runner-autoscale.ps1')
     Exit-Tray

@@ -25,7 +25,7 @@ In PowerShell:
 irm https://github.com/HunKonTech/docker-runner-autoscaler/releases/latest/download/install.ps1 | iex
 ```
 
-The installer asks for your organization and token, installs to `%LOCALAPPDATA%\DockerRunnerAutoscaler`, adds a Startup shortcut and starts the tray app.
+The installer asks for your organization and token, installs to `%LOCALAPPDATA%\DockerRunnerAutoscaler`, adds a Startup shortcut, registers the app in *Settings → Apps → Installed apps* and starts the tray app.
 
 Then use the runners in your workflows:
 
@@ -70,6 +70,26 @@ swap=16GB
 
 Then run `wsl --shutdown` and restart Docker Desktop.
 
+## Uninstall
+
+Either of these works:
+
+- *Settings → Apps → Installed apps* → **Docker Runner Autoscaler** → *Uninstall*
+- Tray icon right-click → **Uninstall...**
+
+It asks for confirmation and then:
+
+1. stops the tray app and the autoscaler and removes the Startup shortcut,
+2. optionally stops the runner containers (`docker compose down`) and deletes the offline runners left behind on GitHub,
+3. deletes the program files (`app\`, `state\`). Your configuration (`.env`, `settings.json`, `docker-compose.yml`) is kept unless you choose to delete it too.
+
+From the command line (no prompts):
+
+```powershell
+# -StopRunners: stop the runners too, -Purge: also delete the configuration (the whole install folder)
+powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\DockerRunnerAutoscaler\app\uninstall.ps1" -StopRunners -Purge
+```
+
 ## Console keys
 
 | Key | Action |
@@ -85,9 +105,6 @@ Then run `wsl --shutdown` and restart Docker Desktop.
 ```powershell
 # remove offline runners left behind (e.g. after a crash)
 powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\DockerRunnerAutoscaler\app\cleanup-runners.ps1"
-
-# uninstall (-StopRunners: docker compose down, -Purge: delete all files)
-powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\DockerRunnerAutoscaler\app\uninstall.ps1" -StopRunners
 ```
 
 ## Security
@@ -134,6 +151,7 @@ A telepítő elkéri az organization nevét és a tokent. Fine-grained PAT kell,
 - **Frissítés:** automatikusan települ, kézzel a tálca menüjéből: *Frissítés keresése*.
 - **Beállítások:** `%LOCALAPPDATA%\DockerRunnerAutoscaler\settings.json` (lásd fent).
 - **Nyelv:** a Windows nyelvét követi, vagy állítsd be: `"Language": "hu"`.
+- **Eltávolítás:** *Gépház → Alkalmazások → Telepített alkalmazások* → **Docker Runner Autoscaler** → *Eltávolítás*, vagy a tálcaikon menüjéből: **Eltávolítás...** Megerősítés után leállítja az appot, kérésre a runnereket is, és törli a programfájlokat. A beállítások (`.env`, `settings.json`) csak akkor törlődnek, ha ezt is választod.
 
 ## License
 
