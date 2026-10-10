@@ -3,7 +3,7 @@
   "MaxRunners": 50,
   "MinRunners": 1,
   "IdleBuffer": 1,
-  "GbPerRunner": 3,
+  "GbPerRunner": 2,
   "PollSec": 10,
   "ScaleDownDelay": 120,
   "StopTimeout": 60,

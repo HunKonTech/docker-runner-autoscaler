@@ -50,7 +50,7 @@ All files are in `%LOCALAPPDATA%\DockerRunnerAutoscaler`:
 | `Language` | `auto` | `auto`, `en`, `hu` |
 | `MinRunners` | `1` | Runners always kept in automatic mode |
 | `IdleBuffer` | `1` | Idle runners kept ready |
-| `GbPerRunner` | `3` | Estimated memory per busy runner. The recommended maximum is `min(CPU threads, RAM / GbPerRunner)` |
+| `GbPerRunner` | `2` | Estimated memory per busy runner. The recommended maximum is `min(CPU threads, RAM / GbPerRunner)`, where RAM is the larger of the host's physical memory and the Docker VM's memory |
 | `MaxRunners` | `50` | Upper limit for manual mode |
 | `PollSec` | `10` | Check interval |
 | `ScaleDownDelay` | `120` | Seconds a surplus must last before scaling down |

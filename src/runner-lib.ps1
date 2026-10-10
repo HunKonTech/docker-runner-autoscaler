@@ -20,7 +20,7 @@ $Settings = [ordered]@{
     MaxRunners       = 50
     MinRunners       = 1         # auto mode: always keep this many
     IdleBuffer       = 1         # auto mode: keep this many idle runners ready
-    GbPerRunner      = 3         # estimated memory per busy runner (GB)
+    GbPerRunner      = 2         # estimated memory per busy runner (GB)
     PollSec          = 10        # check interval (s)
     ScaleDownDelay   = 120       # auto mode: surplus must persist this long before stopping (s)
     StopTimeout      = 60        # time given to deregister on stop (s)
@@ -133,6 +133,15 @@ if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
 
 $script:DockerError = $null
 
+# Physical RAM of the host (GB), queried once; 0 if unavailable
+function Get-HostMemGb {
+    if ($null -eq $script:HostMemGb) {
+        $script:HostMemGb = 0
+        try { $script:HostMemGb = [math]::Round([double](Get-CimInstance Win32_ComputerSystem -ErrorAction Stop).TotalPhysicalMemory / 1GB, 1) } catch { }
+    }
+    $script:HostMemGb
+}
+
 function Get-Recommended {
     # capture stderr too, so the real Docker message is shown on failure
     $out  = @(docker info --format '{{.NCPU}} {{.MemTotal}}' 2>&1 | ForEach-Object { "$_".Trim() })
@@ -146,6 +155,10 @@ function Get-Recommended {
     $cpu, $mem = $line -split '\s+'
     $cpu   = [int]$cpu
     $memGb = [math]::Round([double]$mem / 1GB, 1)
+    # Docker Desktop's WSL2 VM only reports ~half of the host RAM by default,
+    # so count with the machine's physical memory when it is larger
+    $hostGb = Get-HostMemGb
+    if ($hostGb -gt $memGb) { $memGb = $hostGb }
     $ideal = [math]::Max(1, [math]::Min($cpu, [math]::Floor($memGb / $GbPerRunner)))
     [pscustomobject]@{ Cpu = $cpu; MemGb = $memGb; Ideal = [int]$ideal }
 }
