@@ -110,7 +110,9 @@ powershell -File tests/parse.ps1; powershell -File tests/unit.ps1
 
 `.ps1` files must be **UTF-8 with BOM** (Windows PowerShell 5.1). CI checks this.
 
-**Releases**: every push to `main` runs the tests and publishes `v<MAJOR.MINOR>.<run number>`. `MAJOR.MINOR` comes from `version.txt`. Installed apps update themselves.
+**Releases**: every push to `main` (except Markdown/LICENSE-only changes) runs the [Release workflow](.github/workflows/release.yml) on a self-hosted Linux runner. It runs the tests and publishes `v<MAJOR.MINOR>.<run number>`. `MAJOR.MINOR` is the `VERSION` env value in the workflow. Installed apps update themselves.
+
+The workflow then announces the release on X through [Buffer](https://buffer.com) (`scripts/post_buffer_release.py`). Set the `BUFFER_API_KEY` repository secret to enable it (without it the step is skipped). Optional repository variables: `BUFFER_CHANNEL_ID` or `BUFFER_CHANNEL_NAME`, `BUFFER_ORGANIZATION_ID`, `BUFFER_POST_MODE` (default `shareNow`), `BUFFER_POST_TEMPLATE`.
 
 ---
 

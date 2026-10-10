@@ -1,0 +1,102 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - LICENSE
+  workflow_dispatch:
+
+env:
+  # MAJOR.MINOR of the release; the patch number is the workflow run number (v1.0.<run>)
+  VERSION: '1.0'
+  PWSH_VERSION: '7.4.6'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: [self-hosted, linux]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set release version
+        run: |
+          echo "RELEASE_VERSION=${VERSION}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "RELEASE_TAG=v${VERSION}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
+      - name: Check UTF-8 BOM in .ps1 files
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            if [ "$(head -c3 "$f" | od -An -tx1 | tr -d ' \n')" != "efbbbf" ]; then
+              echo "::error file=$f::missing UTF-8 BOM (required by Windows PowerShell 5.1)"
+              fail=1
+            fi
+          done < <(git ls-files '*.ps1')
+          exit $fail
+
+      - name: Install PowerShell
+        run: |
+          case "$(uname -m)" in
+            x86_64)  arch=x64 ;;
+            aarch64) arch=arm64 ;;
+            *) echo "unsupported architecture: $(uname -m)"; exit 1 ;;
+          esac
+          dir="$RUNNER_TEMP/pwsh"
+          mkdir -p "$dir"
+          curl -fsSL "https://github.com/PowerShell/PowerShell/releases/download/v${PWSH_VERSION}/powershell-${PWSH_VERSION}-linux-${arch}.tar.gz" | tar -xz -C "$dir"
+          chmod +x "$dir/pwsh"
+          echo "$dir" >> "$GITHUB_PATH"
+
+      - name: Tests
+        run: |
+          pwsh -NoProfile -File tests/parse.ps1
+          pwsh -NoProfile -File tests/unit.ps1
+
+      - name: Build package
+        run: |
+          pkg="$RUNNER_TEMP/pkg"
+          out="$RUNNER_TEMP/dist"
+          rm -rf "$pkg" "$out"
+          mkdir -p "$pkg/app" "$out"
+          cp -r src/. "$pkg/app/"
+          printf '%s' "$RELEASE_VERSION" > "$pkg/app/VERSION"
+          cp docker-compose.yml .env.example settings.example.json "$pkg/"
+          zip="docker-runner-autoscaler-${RELEASE_VERSION}.zip"
+          (cd "$pkg" && python3 -m zipfile -c "$out/$zip" app docker-compose.yml .env.example settings.example.json)
+          (cd "$out" && sha256sum "$zip" > "$zip.sha256")
+          cp install.ps1 "$out/"
+          echo "DIST_DIR=$out" >> "$GITHUB_ENV"
+          ls -l "$out"
+
+      - name: Create GitHub release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_TAG }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          make_latest: true
+          files: |
+            ${{ env.DIST_DIR }}/*
+
+      - name: Post to X (Buffer)
+        env:
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          BUFFER_CHANNEL_ID: ${{ vars.BUFFER_CHANNEL_ID }}
+          BUFFER_CHANNEL_NAME: ${{ vars.BUFFER_CHANNEL_NAME }}
+          BUFFER_ORGANIZATION_ID: ${{ vars.BUFFER_ORGANIZATION_ID }}
+          BUFFER_POST_MODE: ${{ vars.BUFFER_POST_MODE }}
+          BUFFER_POST_TEMPLATE: ${{ vars.BUFFER_POST_TEMPLATE }}
+        run: |
+          python3 scripts/post_buffer_release.py \
+            --tag "$RELEASE_TAG" \
+            --release-url "${{ steps.release.outputs.url }}"
