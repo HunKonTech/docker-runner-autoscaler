@@ -86,7 +86,23 @@ jobs:
           generate_release_notes: true
           make_latest: true
           files: |
-            ${{ env.DIST_DIR }}/*
+            ${{ env.DIST_DIR }}/*.zip
+            ${{ env.DIST_DIR }}/install.ps1
+
+      # Uploaded as text/plain, not application/octet-stream: the updater in v1.0.1 and older reads
+      # the checksum from the response .Content, which only works when PowerShell sees a text type
+      - name: Upload checksum
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
+        run: |
+          f="docker-runner-autoscaler-${RELEASE_VERSION}.zip.sha256"
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: text/plain" \
+            --data-binary "@$DIST_DIR/$f" \
+            "https://uploads.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets?name=${f}" > /dev/null
 
       - name: Post to X (Buffer)
         env:

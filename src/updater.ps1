@@ -20,6 +20,13 @@ function Find-Update {
     if ((ConvertTo-SemVer $rel.tag_name) -gt (ConvertTo-SemVer (Get-AppVersion))) { $rel } else { $null }
 }
 
+# First field of a sha256sum line ("<hash>  <file>"), upper case
+function Read-Sha256File([string]$path) {
+    $text = [IO.File]::ReadAllText($path).Trim()
+    if (-not $text) { return '' }
+    ($text -split '\s+')[0].ToUpper()
+}
+
 # Downloads, verifies and installs the release into $AppDir
 function Install-Update($rel) {
     $zipAsset = $rel.assets | Where-Object { $_.name -like 'docker-runner-autoscaler-*.zip' } | Select-Object -First 1
@@ -32,10 +39,12 @@ function Install-Update($rel) {
         $zip = Join-Path $tmp $zipAsset.name
         $headers = @{ 'User-Agent' = 'docker-runner-autoscaler' }
         Invoke-WebRequest -Uri $zipAsset.browser_download_url -OutFile $zip -Headers $headers -UseBasicParsing
-        $expected = ((Invoke-WebRequest -Uri $shaAsset.browser_download_url -Headers $headers -UseBasicParsing).Content |
-                     ForEach-Object { if ($_ -is [byte[]]) { [Text.Encoding]::UTF8.GetString($_) } else { $_ } }).Trim().Split(' ')[0]
+        # to a file: GitHub serves the .sha256 as application/octet-stream, so .Content would be a byte[]
+        $sha = Join-Path $tmp 'sha256'
+        Invoke-WebRequest -Uri $shaAsset.browser_download_url -OutFile $sha -Headers $headers -UseBasicParsing
+        $expected = Read-Sha256File $sha
         $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash
-        if ($actual -ne $expected.ToUpper()) { throw (T 'UpdChecksum') }
+        if (-not $expected -or $actual -ne $expected) { throw (T 'UpdChecksum') }
 
         $ex = Join-Path $tmp 'x'
         Expand-Archive -Path $zip -DestinationPath $ex -Force

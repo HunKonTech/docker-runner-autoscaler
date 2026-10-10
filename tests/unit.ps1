@@ -43,6 +43,10 @@ try {
 
     Assert ((ConvertTo-SemVer 'v1.2.10') -gt (ConvertTo-SemVer '1.2.9')) 'semver compare'
     Assert ((ConvertTo-SemVer '0.0.0-dev') -lt (ConvertTo-SemVer 'v1.0.1')) 'dev version is older'
+
+    $shaFile = Join-Path $env:DRA_HOME 'test.sha256'
+    [IO.File]::WriteAllText($shaFile, "532b9b16abc  docker-runner-autoscaler-1.0.2.zip`n")
+    Assert ((Read-Sha256File $shaFile) -ceq '532B9B16ABC') 'sha256 file parsed'
 } finally {
     Remove-Item $env:DRA_HOME -Recurse -Force -ErrorAction SilentlyContinue
 }

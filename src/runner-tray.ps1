@@ -63,6 +63,11 @@ function Show-Balloon([string]$text) {
     $tray.ShowBalloonTip(4000)
 }
 
+# Balloons can be hidden by Windows (notifications off, Focus Assist), so menu actions answer in a dialog
+function Show-Message([string]$text, [System.Windows.Forms.MessageBoxIcon]$icon = 'Information') {
+    [void][System.Windows.Forms.MessageBox]::Show($text, (T 'AppName'), 'OK', $icon)
+}
+
 $tray = New-Object System.Windows.Forms.NotifyIcon
 $tray.Icon    = New-CountIcon '?' ([System.Drawing.Color]::Gray)
 $tray.Text    = T 'AppName'
@@ -101,7 +106,7 @@ function Invoke-UpdateCheck([bool]$interactive) {
     try {
         $rel = Find-Update
         if (-not $rel) {
-            if ($interactive) { Show-Balloon (T 'UpdNone' (Get-AppVersion)) }
+            if ($interactive) { Show-Message (T 'UpdNone' (Get-AppVersion)) }
             return
         }
         Show-Balloon (T 'UpdAvailable' (Get-AppVersion) $rel.tag_name)
@@ -114,7 +119,7 @@ function Invoke-UpdateCheck([bool]$interactive) {
             '-File', "`"$(Join-Path $AppDir 'runner-tray.ps1')`"", '-Restarted')
         Exit-Tray
     } catch {
-        if ($interactive) { Show-Balloon (T 'UpdFailed' $_.Exception.Message) }
+        if ($interactive) { Show-Message (T 'UpdFailed' $_.Exception.Message) 'Error' }
     }
 }
 
