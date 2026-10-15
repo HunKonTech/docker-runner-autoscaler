@@ -1,5 +1,7 @@
 # Docker Runner Autoscaler
 
+[![Sponsor](https://img.shields.io/badge/Sponsor-%E2%9D%A4-db61a2?logo=githubsponsors&logoColor=white)](https://github.com/sponsors/BenKoncsik)
+
 Run **GitHub Actions self-hosted Linux runners in Docker Desktop on Windows** and scale them automatically, from a small tray app.
 
 - **Ephemeral runners**: every job gets a fresh container ([myoung34/github-runner](https://github.com/myoung34/docker-github-actions-runner))
