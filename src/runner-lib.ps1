@@ -222,9 +222,10 @@ if ($Settings.DockerEngine -eq 'wsl') {
     }
 } elseif (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
     # docker is not on PATH (hidden process, fresh install): try the Docker Desktop locations
+    # (the env vars are unset off Windows, e.g. when the tests run on a Linux CI runner)
     $dockerBin = @(
-        (Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin'),   # per-user install
-        (Join-Path $env:ProgramFiles 'Docker\Docker\resources\bin')              # machine-wide install
+        if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin' }   # per-user install
+        if ($env:ProgramFiles) { Join-Path $env:ProgramFiles 'Docker\Docker\resources\bin' }            # machine-wide install
     ) | Where-Object { Test-Path (Join-Path $_ 'docker.exe') } | Select-Object -First 1
     if ($dockerBin) { $env:Path = "$dockerBin;$env:Path" }
 }
