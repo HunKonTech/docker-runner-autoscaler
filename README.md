@@ -12,7 +12,9 @@ Run **GitHub Actions self-hosted Linux runners in Docker Desktop on Windows** an
 
 ## Requirements
 
-- Windows 10/11 with [Docker Desktop](https://www.docker.com/products/docker-desktop/) (WSL2 backend)
+- Windows 10/11 with either
+  - [Docker Desktop](https://www.docker.com/products/docker-desktop/) (WSL2 backend), or
+  - Docker Engine installed inside a WSL2 distro (no Docker Desktop; the daemon must start with the distro, e.g. with systemd enabled)
 - A GitHub **fine-grained personal access token**:
   - Resource owner: your organization
   - Organization permissions → **Self-hosted runners: Read and write**
@@ -25,7 +27,7 @@ In PowerShell:
 irm https://github.com/HunKonTech/docker-runner-autoscaler/releases/latest/download/install.ps1 | iex
 ```
 
-The installer asks for your organization and token, installs to `%LOCALAPPDATA%\DockerRunnerAutoscaler`, adds a Startup shortcut, registers the app in *Settings → Apps → Installed apps* and starts the tray app.
+The installer asks whether Docker Desktop or Docker in WSL is installed (and which WSL distro), then for your organization and token, installs to `%LOCALAPPDATA%\DockerRunnerAutoscaler`, adds a Startup shortcut, registers the app in *Settings → Apps → Installed apps* and starts the tray app.
 
 Then use the runners in your workflows:
 
@@ -48,6 +50,8 @@ All files are in `%LOCALAPPDATA%\DockerRunnerAutoscaler`:
 | Key | Default | Meaning |
 |---|---|---|
 | `Language` | `auto` | `auto`, `en`, `hu` |
+| `DockerEngine` | `desktop` | `desktop` (Docker Desktop) or `wsl` (Docker Engine inside a WSL distro, called through `wsl.exe`) |
+| `WslDistro` | `""` | WSL distro running Docker when `DockerEngine` is `wsl`; empty = default distro |
 | `MinRunners` | `1` | Runners always kept in automatic mode |
 | `IdleBuffer` | `1` | Idle runners kept ready |
 | `GbPerRunner` | `2` | Estimated memory per busy runner. The recommended maximum is `min(CPU threads, RAM / GbPerRunner)`, where RAM is the larger of the host's physical memory and the Docker VM's memory |
@@ -143,7 +147,7 @@ GitHub Actions self-hosted Linux runnerek **Docker Desktopban, Windowson**, auto
 irm https://github.com/HunKonTech/docker-runner-autoscaler/releases/latest/download/install.ps1 | iex
 ```
 
-A telepítő elkéri az organization nevét és a tokent. Fine-grained PAT kell, ezzel a joggal: *Organization permissions → Self-hosted runners: Read and write*.
+A telepítő megkérdezi, hogy Docker Desktop vagy WSL-es Docker (és melyik WSL disztribúció) van a gépen, majd elkéri az organization nevét és a tokent. Fine-grained PAT kell, ezzel a joggal: *Organization permissions → Self-hosted runners: Read and write*.
 
 - **Tálcaikon:** a futó runnerek számát mutatja, kattintásra megnyílik az élő konzol.
 - **Automatikus mód:** mindig tart 1 tétlen runnert, és felskáláz, ha mind foglalt. A fölösleget 2 perc után állítja le, a dolgozó runnert soha.
@@ -152,6 +156,10 @@ A telepítő elkéri az organization nevét és a tokent. Fine-grained PAT kell,
 - **Beállítások:** `%LOCALAPPDATA%\DockerRunnerAutoscaler\settings.json` (lásd fent).
 - **Nyelv:** a Windows nyelvét követi, vagy állítsd be: `"Language": "hu"`.
 - **Eltávolítás:** *Gépház → Alkalmazások → Telepített alkalmazások* → **Docker Runner Autoscaler** → *Eltávolítás*, vagy a tálcaikon menüjéből: **Eltávolítás...** Megerősítés után leállítja az appot, kérésre a runnereket is, és törli a programfájlokat. A beállítások (`.env`, `settings.json`) csak akkor törlődnek, ha ezt is választod.
+
+## Sponsor
+
+If this project saves you time, you can support its development: [sponsor BenKoncsik on GitHub](https://github.com/sponsors/BenKoncsik). / Ha hasznos számodra a projekt, támogathatod a fejlesztést: [BenKoncsik támogatása a GitHubon](https://github.com/sponsors/BenKoncsik).
 
 ## License
 

@@ -1,5 +1,7 @@
 {
   "Language": "auto",
+  "DockerEngine": "desktop",
+  "WslDistro": "",
   "MaxRunners": 50,
   "MinRunners": 1,
   "IdleBuffer": 1,

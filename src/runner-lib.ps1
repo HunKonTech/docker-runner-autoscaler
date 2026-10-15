@@ -16,6 +16,8 @@ $HomeDir = if ($env:DRA_HOME) { $env:DRA_HOME } else { Split-Path $AppDir -Paren
 # --- Settings (defaults, overridable in settings.json) ---------------------------
 $Settings = [ordered]@{
     Language         = 'auto'    # auto | en | hu
+    DockerEngine     = 'desktop' # desktop (Docker Desktop) | wsl (Docker Engine inside a WSL distro)
+    WslDistro        = ''        # DockerEngine=wsl: distro name, empty = default distro
     ServiceName      = 'runner'  # compose service name
     MaxRunners       = 50
     MinRunners       = 1         # auto mode: always keep this many
@@ -153,8 +155,30 @@ function Unregister-Uninstaller {
 
 # --- Docker -------------------------------------------------------------------------
 
-# If docker is not on PATH (hidden process, fresh install), try the Docker Desktop locations
-if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+if ($Settings.DockerEngine -eq 'wsl') {
+    # Docker Engine inside WSL: every docker call goes through wsl.exe (-e: no shell, args passed as-is)
+    $script:WslArgs = @(if ($Settings.WslDistro) { '-d', $Settings.WslDistro }) + '-e'
+
+    # Windows path -> WSL path (wslpath, falling back to the default /mnt/<drive> mount)
+    function ConvertTo-WslPath([string]$path) {
+        $p = @(wsl.exe @script:WslArgs wslpath -a $path 2>$null) | Select-Object -First 1
+        if ($LASTEXITCODE -eq 0 -and $p) { return "$p".Trim() }
+        if ($path -match '^([A-Za-z]):\\?(.*)$') { return "/mnt/$($Matches[1].ToLower())/$($Matches[2] -replace '\\', '/')" }
+        $path
+    }
+
+    $script:WslComposeDir = $null
+    function docker {
+        $a = @($args | ForEach-Object {
+            if ($ComposeDir -and $_ -eq $ComposeDir) {
+                if (-not $script:WslComposeDir) { $script:WslComposeDir = ConvertTo-WslPath $ComposeDir }
+                $script:WslComposeDir
+            } else { $_ }
+        })
+        wsl.exe @script:WslArgs docker @a
+    }
+} elseif (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    # docker is not on PATH (hidden process, fresh install): try the Docker Desktop locations
     $dockerBin = @(
         (Join-Path $env:LOCALAPPDATA 'Programs\DockerDesktop\resources\bin'),   # per-user install
         (Join-Path $env:ProgramFiles 'Docker\Docker\resources\bin')              # machine-wide install
