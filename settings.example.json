@@ -2,7 +2,7 @@
   "Language": "auto",
   "DockerEngine": "desktop",
   "WslDistro": "",
-  "MaxRunners": 50,
+  "MaxRunners": 0,
   "MinRunners": 1,
   "IdleBuffer": 1,
   "GbPerRunner": 2,

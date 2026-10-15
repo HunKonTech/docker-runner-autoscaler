@@ -2,7 +2,8 @@
 #  - Starts (and keeps alive) the hidden runner-autoscale.ps1 background process
 #  - Icon shows the number of running runners; color: green = idle, orange = busy, red = all busy, gray = error
 #  - Click: console view (scale-runners.ps1)
-#  - Right click: automatic mode on/off, check for updates, uninstall, exit (also stops the autoscaler)
+#  - Right click: automatic mode on/off, settings (min / max runners, language), check for updates, uninstall,
+#    exit (also stops the autoscaler)
 #  - Checks GitHub Releases for updates and installs them automatically (settings.json: AutoUpdate)
 param([switch]$Restarted)
 
@@ -19,6 +20,7 @@ try {
 } catch [System.Threading.AbandonedMutexException] { }
 
 $script:uiProc      = $null
+$script:setProc     = $null
 $script:iconKey     = ''
 $script:lastAction  = $null
 $script:lastEnsure  = [datetime]::MinValue
@@ -74,23 +76,42 @@ $tray.Text    = T 'AppName'
 $tray.Visible = $true
 
 $menu      = New-Object System.Windows.Forms.ContextMenuStrip
-$miOpen    = $menu.Items.Add((T 'TrayOpen'))
+$miOpen    = $menu.Items.Add('')
 $miOpen.Font = New-Object System.Drawing.Font($miOpen.Font, [System.Drawing.FontStyle]::Bold)
-$miAuto    = New-Object System.Windows.Forms.ToolStripMenuItem (T 'TrayAuto')
+$miAuto    = New-Object System.Windows.Forms.ToolStripMenuItem
 [void]$menu.Items.Add($miAuto)
+$miSet     = $menu.Items.Add('')
 [void]$menu.Items.Add('-')
-$miUpdate  = $menu.Items.Add((T 'TrayUpdate'))
-$miVersion = $menu.Items.Add((T 'TrayVersion' (Get-AppVersion)))
+$miUpdate  = $menu.Items.Add('')
+$miVersion = $menu.Items.Add('')
 $miVersion.Enabled = $false
 [void]$menu.Items.Add('-')
-$miUninst  = $menu.Items.Add((T 'TrayUninstall'))
-$miExit    = $menu.Items.Add((T 'TrayExit'))
+$miUninst  = $menu.Items.Add('')
+$miExit    = $menu.Items.Add('')
 $tray.ContextMenuStrip = $menu
+
+# (again after the language is changed in the settings)
+function Set-MenuTexts {
+    $miOpen.Text    = T 'TrayOpen'
+    $miAuto.Text    = T 'TrayAuto'
+    $miSet.Text     = T 'TraySettings'
+    $miUpdate.Text  = T 'TrayUpdate'
+    $miVersion.Text = T 'TrayVersion' (Get-AppVersion)
+    $miUninst.Text  = T 'TrayUninstall'
+    $miExit.Text    = T 'TrayExit'
+}
+Set-MenuTexts
 
 function Open-Ui {
     if ($script:uiProc -and -not $script:uiProc.HasExited) { return }
     $script:uiProc = Start-Process powershell -PassThru -WorkingDirectory $HomeDir -ArgumentList @(
         '-NoLogo', '-ExecutionPolicy', 'Bypass', '-File', "`"$(Join-Path $AppDir 'scale-runners.ps1')`"")
+}
+
+function Open-Settings {
+    if ($script:setProc -and -not $script:setProc.HasExited) { return }
+    $script:setProc = Start-Process powershell -PassThru -WorkingDirectory $HomeDir -ArgumentList @(
+        '-NoLogo', '-ExecutionPolicy', 'Bypass', '-File', "`"$(Join-Path $AppDir 'scale-runners.ps1')`"", '-OpenSettings')
 }
 
 function Exit-Tray {
@@ -124,6 +145,7 @@ function Invoke-UpdateCheck([bool]$interactive) {
 }
 
 function Update-Tray {
+    if (Update-Settings) { Set-MenuTexts }
     if ((Get-Date) - $script:lastEnsure -gt [timespan]::FromSeconds(10)) {
         Start-Autoscaler
         $script:lastEnsure = Get-Date
@@ -170,6 +192,7 @@ $miAuto.add_Click({
     }
     Update-Tray
 })
+$miSet.add_Click({ Open-Settings })
 $miUpdate.add_Click({ Invoke-UpdateCheck $true })
 $miUninst.add_Click({
     # the uninstaller asks for confirmation, then stops this tray app too

@@ -8,7 +8,8 @@ Run **GitHub Actions self-hosted Linux runners in Docker Desktop on Windows** an
 - **Tray icon** with the number of runners (green = idle, orange = busy, red = all busy), click to open the live console
 - **Manual mode**: set the runner count with the arrow keys
 - **Auto-update** from GitHub Releases (SHA-256 verified), or manually: tray menu → *Check for updates*
-- English and Hungarian UI (follows the Windows language)
+- **Settings menu** (tray icon right-click → *Settings*, or `S` in the console): minimum and maximum runner count, with the recommended value shown in green, and the language
+- English and Hungarian UI, chosen in the installer and changeable later in the settings
 
 ## Requirements
 
@@ -27,7 +28,7 @@ In PowerShell:
 irm https://github.com/HunKonTech/docker-runner-autoscaler/releases/latest/download/install.ps1 | iex
 ```
 
-The installer asks whether Docker Desktop or Docker in WSL is installed (and which WSL distro), then for your organization and token, installs to `%LOCALAPPDATA%\DockerRunnerAutoscaler`, adds a Startup shortcut, registers the app in *Settings → Apps → Installed apps* and starts the tray app.
+The installer first asks for the language (English / Magyar, also `-Language en|hu`), then whether Docker Desktop or Docker in WSL is installed (and which WSL distro), then for your organization and token, installs to `%LOCALAPPDATA%\DockerRunnerAutoscaler`, adds a Startup shortcut, registers the app in *Settings → Apps → Installed apps* and starts the tray app.
 
 Then use the runners in your workflows:
 
@@ -50,12 +51,14 @@ All files are in `%LOCALAPPDATA%\DockerRunnerAutoscaler`:
 | Key | Default | Meaning |
 |---|---|---|
 | `Language` | `auto` | `auto`, `en`, `hu` |
+
+`MinRunners`, `MaxRunners` and `Language` can also be set in the **settings menu** (tray icon right-click → *Settings*, or `S` in the console). The recommended maximum is shown in green and marked *recommended*; picking it saves `MaxRunners: 0`. Changes apply within a few seconds, no restart needed.
 | `DockerEngine` | `desktop` | `desktop` (Docker Desktop) or `wsl` (Docker Engine inside a WSL distro, called through `wsl.exe`) |
 | `WslDistro` | `""` | WSL distro running Docker when `DockerEngine` is `wsl`; empty = default distro |
-| `MinRunners` | `1` | Runners always kept in automatic mode |
+| `MinRunners` | `1` | Runners always kept running (automatic and manual mode) |
 | `IdleBuffer` | `1` | Idle runners kept ready |
 | `GbPerRunner` | `2` | Estimated memory per busy runner. The recommended maximum is `min(CPU threads, RAM / GbPerRunner)`, where RAM is the larger of the host's physical memory and the Docker VM's memory |
-| `MaxRunners` | `50` | Upper limit for manual mode |
+| `MaxRunners` | `0` | Upper limit in automatic and manual mode. `0` = the recommended maximum (follows the hardware) |
 | `PollSec` | `10` | Check interval |
 | `ScaleDownDelay` | `120` | Seconds a surplus must last before scaling down |
 | `AutoUpdate` | `true` | Install new releases automatically |
@@ -102,6 +105,7 @@ powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\DockerRunnerAutoscal
 | Enter | Apply target (manual mode) |
 | A | Target = recommended |
 | M | Toggle automatic / manual |
+| S | Settings: minimum / maximum runners, language (↑/↓ select, ←/→ change, R recommended, Enter save, Esc back) |
 | Q | Quit (autoscaling keeps running) |
 
 ## Tools
@@ -147,14 +151,15 @@ GitHub Actions self-hosted Linux runnerek **Docker Desktopban, Windowson**, auto
 irm https://github.com/HunKonTech/docker-runner-autoscaler/releases/latest/download/install.ps1 | iex
 ```
 
-A telepítő megkérdezi, hogy Docker Desktop vagy WSL-es Docker (és melyik WSL disztribúció) van a gépen, majd elkéri az organization nevét és a tokent. Fine-grained PAT kell, ezzel a joggal: *Organization permissions → Self-hosted runners: Read and write*.
+A telepítő először a nyelvet kérdezi (English / Magyar), majd azt, hogy Docker Desktop vagy WSL-es Docker (és melyik WSL disztribúció) van a gépen, majd elkéri az organization nevét és a tokent. Fine-grained PAT kell, ezzel a joggal: *Organization permissions → Self-hosted runners: Read and write*.
 
 - **Tálcaikon:** a futó runnerek számát mutatja, kattintásra megnyílik az élő konzol.
 - **Automatikus mód:** mindig tart 1 tétlen runnert, és felskáláz, ha mind foglalt. A fölösleget 2 perc után állítja le, a dolgozó runnert soha.
 - **Kézi mód:** a nyilakkal állíthatod a runnerek számát, Enterrel alkalmazod.
+- **Beállítások menü** (jobb klikk a tálcaikonon → *Beállítások*, vagy `S` a konzolban): minimum (alapból 1) és maximum runnerszám. A CPU/RAM alapján számolt javasolt értéket zölden, *javasolt* felirattal mutatja; ez az alapértelmezett maximum. Itt a nyelv is átállítható.
 - **Frissítés:** automatikusan települ, kézzel a tálca menüjéből: *Frissítés keresése*.
 - **Beállítások:** `%LOCALAPPDATA%\DockerRunnerAutoscaler\settings.json` (lásd fent).
-- **Nyelv:** a Windows nyelvét követi, vagy állítsd be: `"Language": "hu"`.
+- **Nyelv:** a telepítéskor választod ki, később a Beállítások menüben módosítható (vagy `settings.json`: `"Language": "hu"`).
 - **Eltávolítás:** *Gépház → Alkalmazások → Telepített alkalmazások* → **Docker Runner Autoscaler** → *Eltávolítás*, vagy a tálcaikon menüjéből: **Eltávolítás...** Megerősítés után leállítja az appot, kérésre a runnereket is, és törli a programfájlokat. A beállítások (`.env`, `settings.json`) csak akkor törlődnek, ha ezt is választod.
 
 ## Sponsor

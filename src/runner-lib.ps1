@@ -14,39 +14,81 @@ $HomeDir = if ($env:DRA_HOME) { $env:DRA_HOME } else { Split-Path $AppDir -Paren
 . (Join-Path $AppDir 'i18n.ps1')
 
 # --- Settings (defaults, overridable in settings.json) ---------------------------
-$Settings = [ordered]@{
-    Language         = 'auto'    # auto | en | hu
-    DockerEngine     = 'desktop' # desktop (Docker Desktop) | wsl (Docker Engine inside a WSL distro)
-    WslDistro        = ''        # DockerEngine=wsl: distro name, empty = default distro
-    ServiceName      = 'runner'  # compose service name
-    MaxRunners       = 50
-    MinRunners       = 1         # auto mode: always keep this many
-    IdleBuffer       = 1         # auto mode: keep this many idle runners ready
-    GbPerRunner      = 2         # estimated memory per busy runner (GB)
-    PollSec          = 10        # check interval (s)
-    ScaleDownDelay   = 120       # auto mode: surplus must persist this long before stopping (s)
-    StopTimeout      = 60        # time given to deregister on stop (s)
-    AutoUpdate       = $true
-    UpdateRepo       = 'HunKonTech/docker-runner-autoscaler'
-    UpdateCheckHours = 6
-}
 $SettingsFile = Join-Path $HomeDir 'settings.json'
-if (Test-Path $SettingsFile) {
-    try {
-        $user = Get-Content -Raw -Encoding UTF8 $SettingsFile | ConvertFrom-Json
-        foreach ($p in $user.PSObject.Properties) { if ($Settings.Contains($p.Name)) { $Settings[$p.Name] = $p.Value } }
-    } catch { Write-Warning "settings.json: $($_.Exception.Message)" }
-}
-Set-Language $Settings.Language
 
-$Service        = $Settings.ServiceName
-$Max            = [int]$Settings.MaxRunners
-$MinRunners     = [int]$Settings.MinRunners
-$IdleBuffer     = [int]$Settings.IdleBuffer
-$GbPerRunner    = [double]$Settings.GbPerRunner
-$PollSec        = [int]$Settings.PollSec
-$ScaleDownDelay = [int]$Settings.ScaleDownDelay
-$StopTimeout    = [int]$Settings.StopTimeout
+# Loads settings.json over the defaults (again on every call, so changes apply without a restart)
+function Import-Settings {
+    $s = [ordered]@{
+        Language         = 'auto'    # auto | en | hu
+        DockerEngine     = 'desktop' # desktop (Docker Desktop) | wsl (Docker Engine inside a WSL distro)
+        WslDistro        = ''        # DockerEngine=wsl: distro name, empty = default distro
+        ServiceName      = 'runner'  # compose service name
+        MaxRunners       = 0         # upper limit, 0 = recommended (from CPU / RAM)
+        MinRunners       = 1         # always keep this many
+        IdleBuffer       = 1         # auto mode: keep this many idle runners ready
+        GbPerRunner      = 2         # estimated memory per busy runner (GB)
+        PollSec          = 10        # check interval (s)
+        ScaleDownDelay   = 120       # auto mode: surplus must persist this long before stopping (s)
+        StopTimeout      = 60        # time given to deregister on stop (s)
+        AutoUpdate       = $true
+        UpdateRepo       = 'HunKonTech/docker-runner-autoscaler'
+        UpdateCheckHours = 6
+    }
+    $script:SettingsStamp = [datetime]::MinValue
+    if (Test-Path $SettingsFile) {
+        try {
+            $script:SettingsStamp = (Get-Item -LiteralPath $SettingsFile).LastWriteTimeUtc
+            $user = Get-Content -Raw -Encoding UTF8 $SettingsFile | ConvertFrom-Json
+            foreach ($p in $user.PSObject.Properties) { if ($s.Contains($p.Name)) { $s[$p.Name] = $p.Value } }
+        } catch { Write-Warning "settings.json: $($_.Exception.Message)" }
+    }
+    Set-Language $s.Language
+
+    $script:Settings       = $s
+    $script:Service        = $s.ServiceName
+    $script:Max            = [math]::Max(0, [int]$s.MaxRunners)
+    $script:MinRunners     = [math]::Max(0, [int]$s.MinRunners)
+    $script:IdleBuffer     = [int]$s.IdleBuffer
+    $script:GbPerRunner    = [double]$s.GbPerRunner
+    $script:PollSec        = [int]$s.PollSec
+    $script:ScaleDownDelay = [int]$s.ScaleDownDelay
+    $script:StopTimeout    = [int]$s.StopTimeout
+}
+
+# Reloads settings.json if it changed since the last load; $true if it did
+function Update-Settings {
+    $stamp = if (Test-Path $SettingsFile) { (Get-Item -LiteralPath $SettingsFile).LastWriteTimeUtc } else { [datetime]::MinValue }
+    if ($stamp -eq $script:SettingsStamp) { return $false }
+    Import-Settings
+    $true
+}
+
+# Writes the given keys into settings.json (other keys are kept) and reloads it
+function Save-Settings([hashtable]$values) {
+    $obj = [ordered]@{}
+    if (Test-Path $SettingsFile) {
+        try {
+            $cur = Get-Content -Raw -Encoding UTF8 $SettingsFile | ConvertFrom-Json
+            foreach ($p in $cur.PSObject.Properties) { $obj[$p.Name] = $p.Value }
+        } catch { }
+    }
+    foreach ($k in $values.Keys) { $obj[$k] = $values[$k] }
+    [IO.File]::WriteAllText($SettingsFile, ([pscustomobject]$obj | ConvertTo-Json))
+    Import-Settings
+}
+
+Import-Settings
+
+# Recommended runner count: one per CPU thread, GbPerRunner of memory each
+function Get-IdealRunners([int]$cpu, [double]$memGb) {
+    [int][math]::Max(1, [math]::Min($cpu, [math]::Floor($memGb / $GbPerRunner)))
+}
+
+# Effective lower / upper runner limits (MaxRunners = 0 -> the recommended count)
+function Get-RunnerLimits([int]$ideal) {
+    $hi = if ($Max -gt 0) { $Max } else { [math]::Max(1, $ideal) }
+    [pscustomobject]@{ Min = [int][math]::Min($MinRunners, $hi); Max = [int]$hi }
+}
 
 $ComposeDir  = if (Test-Path (Join-Path $HomeDir 'docker-compose.yml')) { $HomeDir } else { $null }
 $StateDir    = Join-Path $HomeDir 'state'
@@ -86,7 +128,8 @@ function Get-RunnerControl {
 
 function Set-RunnerControl([string]$mode, [int]$target) {
     if (-not (Test-Path $StateDir)) { New-Item -ItemType Directory -Path $StateDir | Out-Null }
-    $target = [math]::Max(0, [math]::Min($Max, $target))
+    $target = [math]::Max(0, $target)
+    if ($Max -gt 0) { $target = [math]::Min($Max, $target) }
     [IO.File]::WriteAllText($ControlFile, "MODE=$mode`nTARGET=$target`n")
 }
 
@@ -214,8 +257,20 @@ function Get-Recommended {
     # so count with the machine's physical memory when it is larger
     $hostGb = Get-HostMemGb
     if ($hostGb -gt $memGb) { $memGb = $hostGb }
-    $ideal = [math]::Max(1, [math]::Min($cpu, [math]::Floor($memGb / $GbPerRunner)))
-    [pscustomobject]@{ Cpu = $cpu; MemGb = $memGb; Ideal = [int]$ideal }
+    [pscustomobject]@{ Cpu = $cpu; MemGb = $memGb; Ideal = (Get-IdealRunners $cpu $memGb) }
+}
+
+# Recommendation without Docker (CPU threads and physical RAM of this machine)
+function Get-LocalRecommended {
+    $cpu = [Environment]::ProcessorCount
+    $mem = Get-HostMemGb
+    [pscustomobject]@{ Cpu = $cpu; MemGb = $mem; Ideal = (Get-IdealRunners $cpu $mem) }
+}
+
+# Recommendation from the autoscaler's status, or computed locally when it has none
+function Get-StatusRecommended($st) {
+    if ($st -and [int]$st.ideal -gt 0) { return [pscustomobject]@{ Cpu = [int]$st.cpu; MemGb = $st.mem_gb; Ideal = [int]$st.ideal } }
+    Get-LocalRecommended
 }
 
 function Get-RunnerIds {

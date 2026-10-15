@@ -12,9 +12,10 @@ $surplusSince = $null
 $lastAction   = T 'Started' (Get-Date -Format 'HH:mm:ss')
 
 while ($true) {
+    [void](Update-Settings)   # limits / language changed from the settings menu
     $err = $null
     $ctl = Get-RunnerControl
-    $rec = $null; $running = 0; $busy = 0; $target = 0; $downIn = -1
+    $rec = $null; $lim = $null; $running = 0; $busy = 0; $target = 0; $downIn = -1
     $now = Get-Date -Format 'HH:mm:ss'
 
     try {
@@ -27,12 +28,12 @@ while ($true) {
         $running = $ids.Count
         $busy    = @($ids | Where-Object { Test-Busy $_ }).Count
 
+        $lim = Get-RunnerLimits $rec.Ideal
         if ($ctl.Mode -eq 'auto') {
-            $want   = [math]::Max($MinRunners, $busy + $IdleBuffer)
-            $target = [int][math]::Min($rec.Ideal, $want)
+            $target = [int][math]::Min($lim.Max, [math]::Max($lim.Min, $busy + $IdleBuffer))
             $delay  = $ScaleDownDelay
         } else {
-            $target = [int][math]::Min($Max, $ctl.Target)
+            $target = [int][math]::Max($lim.Min, [math]::Min($lim.Max, $ctl.Target))
             $delay  = 0
         }
 
@@ -68,6 +69,8 @@ while ($true) {
         ideal         = if ($rec) { $rec.Ideal } else { 0 }
         cpu           = if ($rec) { $rec.Cpu } else { 0 }
         mem_gb        = if ($rec) { $rec.MemGb } else { 0 }
+        min_runners   = if ($lim) { $lim.Min } else { $MinRunners }
+        max_runners   = if ($lim) { $lim.Max } else { $Max }
         scale_down_in = $downIn
         poll          = $PollSec
         last_action   = $lastAction
